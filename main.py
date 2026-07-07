@@ -1,71 +1,50 @@
-import re
 import requests
-import traceback
-from bs4 import BeautifulSoup
-from flask import Flask, redirect
+from flask import Flask, jsonify
 
 app = Flask(__name__)
 
-URL_FUENTE = "https://tvlibre-online.com"
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Referer": "https://tvlibre-online.com"
-}
+IP_SERVIDOR = "http://138.121.15.230:9002"
 
-def raspar_token():
-    # Iniciamos sesión simulada para mantener cookies activas
-    sesion = requests.Session()
-    
-    # 1. Petición base para cookies
-    try:
-        sesion.get("https://tvlibre-online.com", headers=HEADERS, timeout=5)
-    except:
-        pass
-
-    # 2. Petición a la página de DSports
-    respuesta = sesion.get(URL_FUENTE, headers=HEADERS, timeout=10)
-    texto_acumulado = respuesta.text
-    
-    # 3. Buscar enlaces internos (iframes) del reproductor
-    soup = BeautifulSoup(respuesta.text, 'html.parser')
-    for iframe in soup.find_all('iframe'):
-        src = iframe.get('src', '')
-        if src:
-            if src.startswith('//'):
-                src = 'https:' + src
-            try:
-                resp_iframe = sesion.get(src, headers=HEADERS, timeout=5)
-                texto_acumulado += " " + resp_iframe.text
-            except:
-                continue
-
-    # 4. Expresión regular para extraer la cadena del token
-    match = re.search(r'token=([a-zA-Z0-9\-\_\.]+)', texto_acumulado)
-    if match:
-        token_sucio = match.group(1)
-        # Limpieza correcta: Corta el texto en el primer caracter extraño que encuentre
-        token_limpio = re.split(r'["\'&\s;?]', token_sucio)[0]
-        return token_limpio
-        
-    return None
+# Lista ampliada con los canales más buscados en Latinoamérica
+CANALES_A_ESCANEAR = [
+    "CITY-TV", "CITYTV", "CARACOL", "CARACOL-TV", "RCN", "RCN-TV", "CANAL-1",
+    "WIN", "WIN-SPORTS", "WIN-SPORTS-PREMIUM", "WIN-PREMIUM",
+    "DSPORTS", "DSPORTS-2", "DSPORTS-PLUS", "DIRECTV-SPORTS", "DIRECTV",
+    "ESPN", "ESPN-1", "ESPN-2", "ESPN-3", "ESPN-4", "ESPN-PREMIUM", 
+    "FOX-SPORTS", "FOX-SPORTS-1", "FOX-SPORTS-2", "FOX-SPORTS-3", 
+    "TNT-SPORTS", "TYC-SPORTS", "GOL-CARACOL", "D-SPORTS",
+    "TELEANTIOQUIA", "TELEPACIFICO", "TELECARIBE", "CINEMAX",
+    "SPACE", "WARNER", "TNT", "HBO", "AXN", "DISNEY", "NICKELODEON"
+]
 
 @app.route('/')
 def inicio():
-    return "Servidor IPTV activo y corregido.", 200
+    return "Rastreador Flussonic Activo. Visita /escanear para ver los canales descubiertos.", 200
 
-@app.route('/dsports.m3u8')
-def enlace_dinamico():
-    try:
-        token_fresco = raspar_token()
-        if token_fresco:
-            print(f"¡Éxito! Token obtenido: {token_fresco}")
-            # Redirige usando el string limpio de manera segura
-            return redirect(f"https://fubo18.com{token_fresco}")
-        
-        return "La pagina fuente cambio su diseno o no entrego un token en este intento.", 200
-    except Exception as e:
-        # Si algo se rompe, te lo muestra en pantalla en vez de dar Internal Server Error
-        return f"Error interno en el script: {str(e)}<br><pre>{traceback.format_exc()}</pre>", 200
+@app.route('/escanear')
+def escanear_servidor():
+    canales_encontrados = []
+    
+    # Probamos cada canal con la estructura exacta: /CANAL/index.m3u8
+    for canal in CANALES_A_ESCANEAR:
+        url_prueba = f"{IP_SERVIDOR}/{canal}/index.m3u8"
+        try:
+            # Hacemos una petición ligera HEAD para no consumir ancho de banda
+            respuesta = requests.head(url_prueba, timeout=2)
+            if respuesta.status_code == 200:
+                canales_encontrados.append({
+                    "canal": canal,
+                    "url": url_prueba,
+                    "estado": "Online 🟢"
+                })
+        except:
+            continue
+            
+    return jsonify({
+        "servidor_analizado": IP_SERVIDOR,
+        "total_encontrados": len(canales_encontrados),
+        "enlaces_activos": canales_encontrados
+    })
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
