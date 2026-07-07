@@ -3,39 +3,54 @@ from flask import Flask, jsonify
 
 app = Flask(__name__)
 
-IP_SERVIDOR = "http://138.121.15.230:9002"
+# Nueva IP del servidor Astra proporcionada por el usuario
+IP_SERVIDOR = "http://8.243.126.131:8000"
 
-# Lista ampliada con los canales más buscados en Latinoamérica
-CANALES_A_ESCANEAR = [
-    "CITY-TV", "CITYTV", "CARACOL", "CARACOL-TV", "RCN", "RCN-TV", "CANAL-1",
-    "WIN", "WIN-SPORTS", "WIN-SPORTS-PREMIUM", "WIN-PREMIUM",
-    "DSPORTS", "DSPORTS-2", "DSPORTS-PLUS", "DIRECTV-SPORTS", "DIRECTV",
-    "ESPN", "ESPN-1", "ESPN-2", "ESPN-3", "ESPN-4", "ESPN-PREMIUM", 
-    "FOX-SPORTS", "FOX-SPORTS-1", "FOX-SPORTS-2", "FOX-SPORTS-3", 
-    "TNT-SPORTS", "TYC-SPORTS", "GOL-CARACOL", "D-SPORTS",
-    "TELEANTIOQUIA", "TELEPACIFICO", "TELECARIBE", "CINEMAX",
-    "SPACE", "WARNER", "TNT", "HBO", "AXN", "DISNEY", "NICKELODEON"
+# 1. Lista de nombres de canales comunes en diferentes formatos
+NOMBRES_CANALES = [
+    "CITY-TV", "CITYTV", "CARACOL", "RCN", "WIN", "WIN-SPORTS", "WIN-PREMIUM",
+    "DSPORTS", "DSPORTS-2", "DSPORTS-PLUS", "ESPN", "ESPN-2", "ESPN-3", "ESPN-4",
+    "FOX-SPORTS", "TNT-SPORTS", "TYC-SPORTS", "HBO", "TNT", "SPACE"
 ]
+
+# 2. Generamos combinaciones numéricas típicas de Astra (a001-a030, ch1-ch30)
+RUTAS_A_PROBAR = []
+
+# Añadir formatos con prefijos comunes
+for i in range(1, 31):
+    num_con_ceros = f"{i:03d}"  # Transforma 1 en 001, 2 en 002...
+    RUTAS_A_PROBAR.append(f"play/a{num_con_ceros}")
+    RUTAS_A_PROBAR.append(f"play/ch{num_con_ceros}")
+    RUTAS_A_PROBAR.append(f"play/{i}")
+    RUTAS_A_PROBAR.append(f"channel/{i}")
+
+# Añadir las rutas de nombres de canales en minúsculas y mayúsculas
+for nombre in NOMBRES_CANALES:
+    RUTAS_A_PROBAR.append(nombre)
+    RUTAS_A_PROBAR.append(nombre.lower())
+    RUTAS_A_PROBAR.append(f"play/{nombre.lower()}")
 
 @app.route('/')
 def inicio():
-    return "Rastreador Flussonic Activo. Visita /escanear para ver los canales descubiertos.", 200
+    return "Rastreador Astra Activo. Visita /escanear para iniciar el barrido.", 200
 
 @app.route('/escanear')
 def escanear_servidor():
     canales_encontrados = []
     
-    # Probamos cada canal con la estructura exacta: /CANAL/index.m3u8
-    for canal in CANALES_A_ESCANEAR:
-        url_prueba = f"{IP_SERVIDOR}/{canal}/index.m3u8"
+    # Probamos cada ruta en la estructura del servidor Astra
+    for ruta in RUTAS_A_PROBAR:
+        url_prueba = f"{IP_SERVIDOR}/{ruta}"
         try:
-            # Hacemos una petición ligera HEAD para no consumir ancho de banda
-            respuesta = requests.head(url_prueba, timeout=2)
+            # Petición ligera HEAD para comprobar existencia del flujo de video
+            respuesta = requests.head(url_prueba, timeout=1.5)
+            
+            # Astra suele responder con 200 OK si el canal está emitiendo de forma abierta
             if respuesta.status_code == 200:
                 canales_encontrados.append({
-                    "canal": canal,
-                    "url": url_prueba,
-                    "estado": "Online 🟢"
+                    "ruta_descubierta": ruta,
+                    "url_directa": url_prueba,
+                    "estado": "Emitiendo 🟢"
                 })
         except:
             continue
