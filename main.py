@@ -1,57 +1,44 @@
 import requests
-from flask import Flask, jsonify
-from concurrent.futures import ThreadPoolExecutor
+from flask import Flask, redirect, jsonify
 
 app = Flask(__name__)
 
-# Configuración del nuevo servidor objetivo
+# Servidor Astra objetivo
 IP_SERVIDOR = "http://45.232.210.1:18000"
-RUTAS_A_PROBAR = []
 
-# 1. Agregamos las variaciones alfanuméricas detectadas en esta red (a01s, a07s, a04k, etc.)
-letras_finales = ['s', 'k', 'b', 'f', 'c']
-for i in range(1, 31):
-    for letra in letras_finales:
-        RUTAS_A_PROBAR.append(f"play/a{i:02d}{letra}/index.m3u8")
-        RUTAS_A_PROBAR.append(f"play/a{i}{letra}/index.m3u8")
-
-# 2. Agregamos también los rangos numéricos limpios por si el puerto 18000 los simplifica
-for i in range(1, 61):
-    RUTAS_A_PROBAR.append(f"play/a{i:02d}/index.m3u8")
-    RUTAS_A_PROBAR.append(f"play/ch{i:02d}/index.m3u8")
-    RUTAS_A_PROBAR.append(f"play/{i}")
-
-def verificar_url(ruta):
-    url_prueba = f"{IP_SERVIDOR}/{ruta}"
-    try:
-        # Petición ultra ligera de 0.8 segundos para procesar todo sin colapsar Render
-        respuesta = requests.head(url_prueba, timeout=0.8)
-        if respuesta.status_code == 200:
-            return {"codigo_detectado": ruta, "url_iptv": url_prueba}
-    except:
-        pass
-    return None
+# Rutas maestras por defecto que Astra usa para exportar todos sus canales juntos
+RUTAS_MAESTRAS = [
+    "playlist.m3u8",
+    "playlist.m3u",
+    "api/playlist.m3u8",
+    "play/playlist.m3u8"
+]
 
 @app.route('/')
 def inicio():
-    return "Rastreador Avanzado para Puerto 18000 Activo. Visita /escanear", 200
+    return "Extractor de listas Astra Activo. Visita /escanear", 200
 
 @app.route('/escanear')
-def escanear_servidor():
-    canales_encontrados = []
-    
-    # 40 hilos en simultáneo para barrer más de 350 combinaciones en 3 segundos
-    with ThreadPoolExecutor(max_workers=40) as executor:
-        resultados = executor.map(verificar_url, RUTAS_A_PROBAR)
-        for res in resultados:
-            if res is not None:
-                canales_encontrados.append(res)
-                
+def descargar_lista_maestra():
+    # El script intenta descargar la lista completa de canales en un solo paso
+    for ruta in RUTAS_MAESTRAS:
+        url_archivo = f"{IP_SERVIDOR}/{ruta}"
+        try:
+            # Hacemos una petición rápida para ver si el archivo existe
+            respuesta = requests.get(url_archivo, timeout=5)
+            if respuesta.status_code == 200 and ("#EXTM3U" in respuesta.text or "EXTINF" in respuesta.text):
+                print(f"¡Éxito! Lista maestra encontrada en: {url_archivo}")
+                # Redirige de inmediato a tu reproductor con todos los canales cargados
+                return redirect(url_archivo)
+        except:
+            continue
+            
+    # Si el administrador tiene protegida la lista general con contraseña
     return jsonify({
-        "servidor_analizado": IP_SERVIDOR,
-        "total_descubiertos": len(canales_encontrados),
-        "canales_activos": canales_encontrados
-    })
+        "estado": "Error",
+        "mensaje": "El servidor Astra tiene bloqueada la exportacion publica de la lista general. Requiere login administrativo.",
+        "servidor": IP_SERVIDOR
+    }), 404
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
