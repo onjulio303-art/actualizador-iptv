@@ -4,47 +4,44 @@ from concurrent.futures import ThreadPoolExecutor
 
 app = Flask(__name__)
 
-# Nueva dirección IP del servidor Astra a analizar
 IP_SERVIDOR = "http://38.226.210.46:8000"
-
-# Estructuramos las rutas de canales más comunes en servidores Astra latinoamericanos
 RUTAS_A_PROBAR = []
 
-# 1. Rangos numéricos clásicos de Astra con prefijos comunes (ej: play/c01, play/ch01, play/1)
-for i in range(1, 61):
-    RUTAS_A_PROBAR.append(f"play/c{i:02d}")
-    RUTAS_A_PROBAR.append(f"play/ch{i:02d}")
-    RUTAS_A_PROBAR.append(f"play/a{i:02d}")
-    RUTAS_A_PROBAR.append(f"play/{i}")
-    RUTAS_A_PROBAR.append(f"play/{i:02d}")
+# GENERADOR INTELIGENTE: Creamos las combinaciones basadas en tus ejemplos (a07b, a0ab)
+# Patrón: una letra inicial ('a' o 'b'), un número/letra, un número/letra, y una letra final ('b', 'f', 'k', 'c', etc.)
+letras_iniciales = ['a', 'b']
+caracteres_medio = ['0', '1', '2', '3', 'a', 'b', 'c', 'd', 'e']
+letras_finales = ['b', 'c', 'f', 'k', 'd', 'a', 'x']
 
-# 2. Formatos con nombres de canales conocidos en minúsculas y mayúsculas
-CANALES_TEXTO = ["caracol", "rcn", "win", "winsports", "dsports", "espn", "espn2", "foxsports", "tyc"]
-for canal in CANALES_TEXTO:
-    RUTAS_A_PROBAR.append(f"play/{canal}")
-    RUTAS_A_PROBAR.append(f"play/{canal.upper()}")
+# Generamos mezclas rápidas basadas en el patrón real de Astra
+for inicial in letras_iniciales:
+    for medio1 in caracteres_medio:
+        for medio2 in ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b']:
+            for final in letras_finales:
+                codigo = f"{inicial}{medio1}{medio2}{final}"
+                RUTAS_A_PROBAR.append(f"play/{codigo}")
 
 def verificar_url(ruta):
     url_prueba = f"{IP_SERVIDOR}/{ruta}"
     try:
-        # Petición ultra ligera de 1 segundo para agilizar el barrido en paralelo
-        respuesta = requests.head(url_prueba, timeout=1.0)
+        # Petición ultra ligera HEAD de 0.8 segundos
+        respuesta = requests.head(url_prueba, timeout=0.8)
         if respuesta.status_code == 200:
-            return {"ruta_descubierta": ruta, "url_iptv": url_prueba}
+            return {"codigo_detectado": ruta.split('/')[-1], "url_iptv": url_prueba}
     except:
         pass
     return None
 
 @app.route('/')
 def inicio():
-    return "Rastreador Astra Activo para la nueva IP. Visita /escanear", 200
+    return "Rastreador Astra Alfanumérico Activo. Visita /escanear", 200
 
 @app.route('/escanear')
 def escanear_servidor():
     canales_encontrados = []
     
-    # Ejecutamos 35 hilos en simultáneo para barrer más de 300 rutas en solo 3 segundos
-    with ThreadPoolExecutor(max_workers=35) as executor:
+    # Subimos a 40 hilos en paralelo para procesar las combinaciones en menos de 4 segundos
+    with ThreadPoolExecutor(max_workers=40) as executor:
         resultados = executor.map(verificar_url, RUTAS_A_PROBAR)
         for res in resultados:
             if res is not None:
