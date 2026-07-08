@@ -4,7 +4,7 @@ from flask import Flask, redirect, jsonify
 app = Flask(__name__)
 
 # Servidor Astra objetivo
-IP_SERVIDOR = "http://45.232.210.1:18000"
+IP_SERVIDOR = "http://138.121.15.230:9002"
 
 # Rutas maestras por defecto que Astra usa para exportar todos sus canales juntos
 RUTAS_MAESTRAS = [
